@@ -2,19 +2,23 @@ README
 
 files:
 maxabsk_test.cu - entry point for test program
-sparsecoding.cu - the parallel algorithms for sparse coding
+sparsecoding.cuh - the parallel algorithm templates for sparse coding + device query code
 testcasegen.cpp - test case generation code
 utils.cpp - generic SEQUENTIAL algorithms
 
 usage:
 
 make - create executables
+	=> sparsecoding_test - receives a test case (input + expected result) as input, computes using parallel implementation and compare it to the sequential algorithm results for correctness
+	=> testcasegen - receives two numbers, N and K as inputs and outputs a test case file to be fed to the sparsecoding_test program.
+ 
 make clean - clear output files and executables
+
 make testcase - creates test cases 
 
 qsub runX.pbs - run test case X. qsub take a while to return result. Results are stored in outX.txt. The sparse-coding-test.* files are indicators that qsub is done, feel free to remove them if it clutters the folder.
 
-edit files testcaseXparams.txt to specify N and K, respectively.
+edit files testcaseXparams.txt to specify N and K, respectively, then "make testcase" to generate the test cases.
 
 CAUTION:
 
