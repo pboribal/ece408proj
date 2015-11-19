@@ -1,8 +1,9 @@
-#define BLOCK_SIZE 1024
+#define BLOCK_SIZE 256
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
+#include <cmath>
+#include <map>
 
 // the reduction operator
 // a and b are K-element arrays sorted in descending magnitude i.e. [5 -4 3 1 0 0]
@@ -206,7 +207,7 @@ __host__ void sortkv(K* keys, V* values,int start, int end)
 }
 
 /*
-* Performs an in-place sort, sorted in ascending order
+* Performs an in-place sort, sorted in ascending order (not really relevant)
 */
 template<typename K, typename V>
 __host__ void do_sortkv(K* keys, V* values, int N)
@@ -231,10 +232,18 @@ int main()
 	float* hInput = (float*) malloc(sizeof(float)*input_size);
 	float* hOutput = (float*) malloc(sizeof(float)*k);
 	int* hIdx = (int*) malloc(sizeof(int)*k);
-	
+	std::map<int,float> expected;
 	//populate input
 	for(int i=0;i<input_size;i++) std::cin >> hInput[i];
-
+	//populate expected result from test case
+	for(int i=0;i<k;i++) 
+	{
+		int idx;
+		float val;
+		std::cin >> idx;
+		std::cin >> val;
+		expected[idx] = val;
+	}
 	float* dInput;
 	int* dIdxInput;
 	float* dOutput;	
@@ -247,12 +256,26 @@ int main()
 	cudaDeviceSynchronize();
 	cudaMemcpy(hOutput,dOutput,sizeof(float)*k,cudaMemcpyDeviceToHost);
 	cudaMemcpy(hIdx,dIdxInput,sizeof(int)*k,cudaMemcpyDeviceToHost);
-	// TODO : sort by index not really needed. The results are fine as long as they keep track of the indexes	
-	do_sortkv(hIdx,hOutput,k);
+	bool pass = true;
 	for(int i=0;i<k;i++)
 	{
-		printf("%d %f\n",hIdx[i],hOutput[i]);
+		int idx = hIdx[i];
+		float val = hOutput[i];
+		printf("%d %f\n",idx,val);
+		if(expected.count(idx))
+		{
+			if(expected[idx]!=val)
+			{
+				pass = false;
+			}
+		}
+		else
+		{
+			pass = false;
+		}
 	}
+	if(pass) std::cout << "correct!" << std::endl;
+	else std::cout << "incorrect." << std::endl;
 	free(hInput);
 	free(hOutput);
 	cudaFree(dInput);

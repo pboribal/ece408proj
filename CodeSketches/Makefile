@@ -1,7 +1,7 @@
 all: maxabsk_test.cu
 	nvcc -O3 -ccbin=g++ -Xcompiler -Wall,-Wextra,-Wshadow -o maxabsk_test $^
 	g++ testcasegen.cpp -o testcasegen
-gentest:testcasegen testcase1params.txt testcase2params.txt testcase3params.txt
+testcase:testcasegen testcase1params.txt testcase2params.txt testcase3params.txt
 	./testcasegen < testcase1params.txt > testcase1.txt
 	./testcasegen < testcase2params.txt > testcase2.txt
 	./testcasegen < testcase3params.txt > testcase3.txt

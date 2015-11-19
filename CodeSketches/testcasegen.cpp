@@ -1,6 +1,6 @@
 #include <iostream>
 #include <stdlib.h>
-#include <math.h>
+#include <cmath>
 int main()
 {
 	srand(time(NULL));
@@ -13,31 +13,32 @@ int main()
 	int idx[n];
 	for(int i=0;i<n;i++)
 	{
-		f[i] = (0.5-((float)rand())/((float)RAND_MAX))*2;
+		f[i] = (0.5-((float)rand())/((float)RAND_MAX))*20;
 		idx[i] = i;
 		std::cout << f[i] << std::endl;
 	}
 	std::cout << std::endl;
 	// Bubble sort is enough, it's just a test case generator
 	// no need to be performance critical here
-	bool pass = false;
-	while(!pass)
+	volatile bool swapped = false;
+	do
 	{
-		pass = true;
-		for(int i=0;i<n-1;i++)
+		swapped = false;
+		for(int i=1;i<n;i++)
 		{
-			if(fabs(f[i])<fabs(f[i+1]))
+			if( std::abs(f[i-1]) < std::abs(f[i]) )
 			{
-				float t = f[i];
-				f[i] = f[i+1];
-				f[i+1] = t;
-				int j = idx[i];
-				idx[i] = idx[i+1];
-				idx[i+1] = j;
-				pass = false;
+				float t = f[i-1];
+				f[i-1] = f[i];
+				f[i] = t;
+				int j = idx[i-1];
+				idx[i-1] = idx[i];
+				idx[i] = j;
+				swapped = true;
 			}
-		}
-	}
+		}		
+	}while(swapped);
+
 	for(int i=0;i<k;i++)
 	{
 		std::cout << idx[i] << "  " << f[i] << std::endl;
