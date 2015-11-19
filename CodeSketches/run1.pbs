@@ -1,8 +1,0 @@
-#!/bin/bash
-#PBS -l walltime=00:00:10
-#PBS -l nodes=1:ppn=1
-#PBS -N qsub_sp_result
-#PBS -j oe
-cd $PBS_O_WORKDIR
-./sparsecoding_test < testcase1.txt > out1.txt
-echo "job 1 done"
