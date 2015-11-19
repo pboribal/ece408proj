@@ -15,7 +15,7 @@ int main()
 	{
 		f[i] = (0.5-((float)rand())/((float)RAND_MAX))*2;
 		idx[i] = i;
-		std::cout << f[i] << " ";
+		std::cout << f[i] << std::endl;
 	}
 	std::cout << std::endl;
 	// Bubble sort is enough, it's just a test case generator
