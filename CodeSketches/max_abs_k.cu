@@ -1,6 +1,7 @@
-#define BLOCK_SIZE 1024
+#define BLOCK_SIZE 256
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 // the reduction operator
 // a and b are K-element arrays sorted in descending magnitude i.e. [5 -4 3 1 0 0]
@@ -24,9 +25,8 @@ __device__ void merge_maxabs(float* a, float *b,int* idxA, int* idxB, float* buf
 		float aval = a[ia];		 float bval = b[ib];
 		float aidx = idxA[ia];	 float bidx = idxB[ib];
 		float amag = fabs(aval); float bmag = fabs(bval);
-		float maxmag = fmax(amag,bmag);
-		int iszeros = aval==0 && bval==0;		
-		int incb = iszeros ?  bidx<aidx : (maxmag==bmag) && (amag!=bmag);
+		int isequal = amag==bmag;
+		int incb = isequal ?  bidx<aidx : bmag>amag;
 		
 		buf[i] = incb ? bval : aval;				
 		idxbuf[i] = incb ? bidx : aidx;
@@ -72,6 +72,7 @@ __global__ void max_abs_k(float *input, float *output, int* idxinput, int init_i
   }  
   if(tx<K)
   {
+/*
 	  int count = 0;
 	  float my_val = data[tx];
 	  int my_idx = idxdata[tx];
@@ -81,6 +82,9 @@ __global__ void max_abs_k(float *input, float *output, int* idxinput, int init_i
 	  }
 	output[bx*K+count] = my_val;
 	idxinput[bx*K+count] = my_idx;
+// */
+	output[bx*K+tx] = data[tx];
+	idxinput[bx*K+tx] = idxdata[tx];
   }  
 }
 //
@@ -94,7 +98,7 @@ __host__ void do_max_abs_k(float *initial_input, float *output,int* idxinput, co
 	float* input = initial_input;		
 	int shared_size_bytes = (sizeof(float)+sizeof(int))*2*BLOCK_SIZE*K; // 4 parts: data(float), index data(int), data buffer(float), index buffer (int)
 	int num_blocks = (int) ceil(n*1.0/BLOCK_SIZE);		
-	int init_index = 1;
+	int init_index = 1; //use direct index for the first round
 	int round = 0;
 	do
 	{		
@@ -136,7 +140,7 @@ int deviceQuery()
     printf("Computational Capabilities: %d.%d\n", deviceProp.major, deviceProp.minor);    
     printf(" Maximum global memory size: %lu\n", deviceProp.totalGlobalMem);
     printf(" Maximum constant memory size: %lu\n", deviceProp.totalConstMem);
-    printf(" Maximum shared memory size per block: %d\n", deviceProp.sharedMemPerBlock);
+    printf(" Maximum shared memory size per block: %d\n", (int)deviceProp.sharedMemPerBlock);
     printf(" Maximum block dimensions: %d x %d x %d\n", deviceProp.maxThreadsDim[0], deviceProp.maxThreadsDim[1], deviceProp.maxThreadsDim[2]);
     printf(" Maximum grid dimensions: %d x %d x %d\n", deviceProp.maxGridSize[0], deviceProp.maxGridSize[1], deviceProp.maxGridSize[2]);
     printf(" Warp size: %d\n", deviceProp.warpSize);
@@ -145,26 +149,93 @@ int deviceQuery()
   printf("stop - Getting GPU Data.\n"); //@@ stop the timer
   return 0;
 }
-
-int main(int argc, char **argv) 
-{
-	if(deviceQuery())
+template<typename K, typename V>
+__host__ void mergekv(K* keys, V* values, int start, int mid, int end)
+{	
+	int size = end - start;
+	int ia = start;
+	int ib = mid;
+	int i = 0;
+	K* ktmp = (K*)malloc(sizeof(K)*size);
+	V* vtmp = (V*)malloc(sizeof(V)*size);
+	while(ia < mid && ib < end)
 	{
-		return 0;
+		int inca = keys[ia] < keys[ib];
+		ktmp[i] = inca ? keys[ia] : keys[ib];
+		vtmp[i] = inca ? values[ia]: values[ib];
+		ia += inca;
+		ib += !inca;
+		i++;
 	}
-	int input_size = 10;
+	while(ia < mid) 
+	{
+		ktmp[i] = keys[ia];
+		vtmp[i] = values[ia];
+		ia++;
+		i++;
+	}
+	while(ib < end)
+	{
+		ktmp[i] = keys[ib];
+		vtmp[i] = values[ib];
+		ib++;
+		i++;
+	}
+	for(i=0;i<size;i++)
+	{
+		keys[start+i] = ktmp[i];
+		values[start+i] = vtmp[i];
+	}
+	free(ktmp);
+	free(vtmp);
+}
+template<typename K, typename V>
+__host__ void sortkv(K* keys, V* values,int start, int end)
+{
+	int size = end-start;
+	if(size<2) return;
+	if(size==2) 
+	{
+		if(keys[start+1] < keys[start])
+		{
+			K tmpk = keys[start];
+			keys[start] = keys[start+1];
+			keys[start+1] = tmpk;
+			V tmpv = values[start];
+			values[start] = values[start+1];
+			values[start+1] = tmpv;
+		}
+	} else {
+		int mid = (start+end)/2;
+		sortkv(keys,values,start, mid);
+		sortkv(keys,values,mid, end);
+		mergekv(keys,values,start,mid,end);
+	}
+}
+
+/*
+* Performs an in-place sort, sorted in ascending order
+*/
+template<typename K, typename V>
+__host__ void do_sortkv(K* keys, V* values, int N)
+{
+	sortkv(keys,values,0,N);	
+}
+
+int main() 
+{
+	int input_size = BLOCK_SIZE*BLOCK_SIZE;
 	int k = 5;
 	int num_blocks = (int) ceil(input_size*1.0/BLOCK_SIZE);
 	int output_size = k*num_blocks;
 	float* hInput = (float*) malloc(sizeof(float)*input_size);
 	float* hOutput = (float*) malloc(sizeof(float)*k);
-	printf("initializing input\n");
-	for(int i=0;i<input_size;i++)
-	{
-		hInput[i] = ( i&1 ? 1 : -1 )*(0.123*i);
-		printf("%f\n",hInput[i]);
-	}
+	int* hIdx = (int*) malloc(sizeof(int)*k);
+
+	printf("initializing input...");
+	for(int i=0;i<input_size;i++) hInput[i] = i*(i&1?1:-1)*0.123;
 	printf("done\n");
+
 	float* dInput;
 	int* dIdxInput;
 	float* dOutput;	
@@ -173,11 +244,21 @@ int main(int argc, char **argv)
 	cudaMalloc(&dOutput, sizeof(float)*output_size);	
 	cudaMemcpy(dInput,hInput,sizeof(float)*input_size,cudaMemcpyHostToDevice);
 	do_max_abs_k(dInput,dOutput,dIdxInput,input_size,k);
+
 	cudaDeviceSynchronize();
-	cudaMemcpy(hOutput,dOutput, sizeof(float)*k, cudaMemcpyDeviceToHost);	
+	cudaMemcpy(hOutput,dOutput,sizeof(float)*k,cudaMemcpyDeviceToHost);
+	cudaMemcpy(hIdx,dIdxInput,sizeof(int)*k,cudaMemcpyDeviceToHost);
+	
+	printf("Non-Ordered Output:\n");
 	for(int i=0;i<k;i++)
 	{
-		printf("%f\n", hOutput[i]);
+		printf("in[%d] = %f\n", hIdx[i], hOutput[i]);
+	}
+	do_sortkv(hIdx,hOutput,k);
+	printf("Ordered Output:\n");
+	for(int i=0;i<k;i++)
+	{
+		printf("in[%d] = %f\n",hIdx[i],hOutput[i]);
 	}
 	free(hInput);
 	free(hOutput);
