@@ -1,5 +1,11 @@
 README
 
+files:
+maxabsk_test.cu - entry point for test program
+sparsecoding.cu - the parallel algorithms for sparse coding
+testcasegen.cpp - test case generation code
+utils.cpp - generic SEQUENTIAL algorithms
+
 usage:
 
 make - create executables
