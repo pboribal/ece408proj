@@ -49,29 +49,45 @@ __device__ void merge_maxabs(T* a, T *b,int* idxA, int* idxB, T* buf, int* idxbu
 // output[num_blocks x K]
 // output is K max magnitudes of each block, in descending order
 template <typename T>
-__global__ void max_abs_k(T *input, T *output, int* idxinput, int init_index, const int N, const int K) {  
+__global__ void max_abs_k(T *input, T *output, int* idxinput, const int initialize, const int N, const int K) {  
   extern __shared__ T data[];
-  int tx = threadIdx.x, bx = blockIdx.x;
-  int offset = tx*K;
-  int* idxdata = (int*) &data[BLOCK_SIZE*K];
-  T* buf = (T*) &idxdata[BLOCK_SIZE*K];
-  int* idxbuf = (int*) &buf[BLOCK_SIZE*K];
-  unsigned int i = bx*BLOCK_SIZE + tx;
-  data[offset] = i<N ? input[i] : 0;       
-  idxdata[offset] = i<N ? ( init_index ? i : idxinput[i] ): N;       
-  for(int j=1;j<K;j++)
-  {
-	data[offset+j] = 0;	    	
-	idxdata[offset+j] = N;
-  }		
+  int tx = threadIdx.x, bx = blockIdx.x, dimx = blockDim.x;
+  int gx = tx/K;
+  int offset = gx*K; // offset within block
+  int block_offset = bx*dimx;
+  int full_offset = block_offset + offset; // offset across grid
+  int* idxdata = (int*) &data[dimx];
+  T* buf = (T*) &idxdata[dimx];
+  int* idxbuf = (int*) &buf[dimx];
+  unsigned int i = block_offset + tx;  
+  int count = 0;
+  T myval = data[tx] = i<N ? input[i] : 0;       
+  int myidx = idxdata[tx] = i<N ? ( initialize ? i : idxinput[i] ): i; 
+  T absmyval = fabs(myval);  
+  int numgroups = dimx/K;
+  if(initialize)
+  {       
+      for(int j=0;j<K;j++)
+	  {	  
+		  int p = offset+j;
+		  T absthatval = fabs(data[p]);		  
+		  int  thatidx = idxdata[p];
+		  count += ((absmyval < absthatval) || ((absmyval == absthatval || myidx>=N) && myidx>thatidx));
+	  }			 
+	  __syncthreads();    
+	  data[offset+count] = myval;
+	  idxdata[offset+count] = myidx;  
+  }  
   __syncthreads();  
-  for(unsigned int stride=(BLOCK_SIZE>>1);stride>0;stride>>=1)
-  {	  
-	  if(tx<stride){
-		//perform min absolute K reduction operator
-		int stride_offset = offset+stride*K;
-		merge_maxabs(data+offset,data+stride_offset,idxdata+offset, idxdata+stride_offset, buf+offset, idxbuf+offset,N,K);  	 
+  int self_offset = tx*K;
+  for(unsigned int stride=(numgroups>>1)+(numgroups&1);stride>0;stride=(stride>>1)+((stride&1) && stride!=1))
+  {	  	
+	  int stride_offset = self_offset+stride*K;	  
+	  if(tx<stride && tx+stride < numgroups){
+		//perform min absolute K reduction operator		
+		merge_maxabs(data+self_offset,data+stride_offset,idxdata+self_offset, idxdata+stride_offset, buf+offset, idxbuf+offset,N,K);  	 
 	  }
+	  numgroups = stride;
 	  __syncthreads();
   }  
   if(tx<K)
@@ -91,7 +107,7 @@ __host__ void do_max_abs_k(T *initial_input, T *output,int* idxinput, const int 
 {
 	int n = N;
 	T* input = initial_input;		
-	int shared_size_bytes = (sizeof(T)+sizeof(int))*2*BLOCK_SIZE*K; // 4 parts: data(T), index data(int), data buffer(T), index buffer (int)
+	int shared_size_bytes = (sizeof(T)+sizeof(int))*2*BLOCK_SIZE; // 4 parts: data(T), index data(int), data buffer(T), index buffer (int)
 	int num_blocks = (int) ceil(n*1.0/BLOCK_SIZE);		
 	int init_index = 1; //use direct index for the first round
 	do
