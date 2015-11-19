@@ -1,4 +1,4 @@
-all: maxabsk_test.cu
+all: sparsecoding_test.cu sparsecoding.cu utils.cpp
 	nvcc -O3 -ccbin=g++ -Xcompiler -Wall,-Wextra,-Wshadow -o maxabsk_test $^
 	g++ testcasegen.cpp -o testcasegen
 testcase:testcasegen testcase1params.txt testcase2params.txt testcase3params.txt
