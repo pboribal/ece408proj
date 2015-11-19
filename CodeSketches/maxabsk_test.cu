@@ -1,9 +1,11 @@
-#define BLOCK_SIZE 256
+#define BLOCK_SIZE 1024 
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <cmath>
 #include <map>
+#include <set>
+
 
 // the reduction operator
 // a and b are K-element arrays sorted in descending magnitude i.e. [5 -4 3 1 0 0]
@@ -48,14 +50,14 @@ __device__ void merge_maxabs(T* a, T *b,int* idxA, int* idxB, T* buf, int* idxbu
 // input[N]
 // output[num_blocks x K]
 // output is K max magnitudes of each block, in descending order
-template <typename T>
-__global__ void max_abs_k(T *input, T *output, int* idxinput, const int initialize, const int N, const int K) {  
+template<typename T> 
+__global__ void max_abs_k(T *input, T *output, int* idxinput, const int initialize, const int N, const int K)
+{ 
   extern __shared__ T data[];
-  int tx = threadIdx.x, bx = blockIdx.x, dimx = blockDim.x;
+  int tx = threadIdx.x, bx = blockIdx.x, dimx = BLOCK_SIZE;
   int gx = tx/K;
   int offset = gx*K; // offset within block
   int block_offset = bx*dimx;
-  int full_offset = block_offset + offset; // offset across grid
   int* idxdata = (int*) &data[dimx];
   T* buf = (T*) &idxdata[dimx];
   int* idxbuf = (int*) &buf[dimx];
@@ -67,16 +69,17 @@ __global__ void max_abs_k(T *input, T *output, int* idxinput, const int initiali
   int numgroups = dimx/K;
   if(initialize)
   {       
-      for(int j=0;j<K;j++)
+	for(int j=0;j<K;j++)
 	  {	  
 		  int p = offset+j;
 		  T absthatval = fabs(data[p]);		  
 		  int  thatidx = idxdata[p];
-		  count += ((absmyval < absthatval) || ((absmyval == absthatval || myidx>=N) && myidx>thatidx));
-	  }			 
+		  count += ((myidx < N && absmyval < absthatval) || ((absmyval == absthatval || myidx>=N) && myidx>thatidx));			 
+ 	  }
 	  __syncthreads();    
 	  data[offset+count] = myval;
 	  idxdata[offset+count] = myidx;  
+	
   }  
   __syncthreads();  
   int self_offset = tx*K;
@@ -85,7 +88,7 @@ __global__ void max_abs_k(T *input, T *output, int* idxinput, const int initiali
 	  int stride_offset = self_offset+stride*K;	  
 	  if(tx<stride && tx+stride < numgroups){
 		//perform min absolute K reduction operator		
-		merge_maxabs(data+self_offset,data+stride_offset,idxdata+self_offset, idxdata+stride_offset, buf+offset, idxbuf+offset,N,K);  	 
+		merge_maxabs(data+self_offset,data+stride_offset,idxdata+self_offset, idxdata+stride_offset, buf+self_offset, idxbuf+stride_offset,N,K);  	 
 	  }
 	  numgroups = stride;
 	  __syncthreads();
@@ -249,6 +252,7 @@ int main()
 	float* hOutput = (float*) malloc(sizeof(float)*k);
 	int* hIdx = (int*) malloc(sizeof(int)*k);
 	std::map<int,float> expected;
+	std::set<int> found;
 	//populate input
 	for(int i=0;i<input_size;i++) std::cin >> hInput[i];
 	//populate expected result from test case
@@ -288,6 +292,14 @@ int main()
 		else
 		{
 			pass = false;
+		}
+
+		if(!found.count(idx))
+		{
+			found.insert(idx);
+		} else
+		{
+			pass =  false;
 		}
 	}
 	if(pass) std::cout << "correct!" << std::endl;

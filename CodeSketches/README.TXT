@@ -11,12 +11,14 @@ qsub runX.pbs - run test case X. qsub take a while to return result. Results are
 edit files testcaseXparams.txt to specify N and K, respectively.
 
 CAUTION:
-Currently the algorithm supports high N but has problems with K. The maximum value of K is approximately inverse proportional to the constant BLOCK_SIZE in maxabsk_test.cu, namely K<4 for BLOCK_SIZE==1024 and K<13 for BLOCK_SIZE==256. This is solely due to the limit in shared memory available per block. We need to restructure the algorithm a bit to lift this constraint...
 
-Possible optimizations (I will do this thursday):
-- try to merge_max_abs_k in-place, if succeed will increase upper bound of K
+Currently the algorithm supports very large N but has limitations on the value of K. The constraint as of now is that BLOCK_SIZE must be multiple of K, meaning K is also limited by the amount of shared memory available. A workaround (not yet implemented) could be to see if K>BLOCK_SIZE. If yes then start by sorting, in descending order, blocks of size BLOCK_SIZE. Then merge those sorted blocks to get K elements. Each merged part, then, are concatenated and and calls max_abs_k recursively until final K elements is obtained.
+
+Optimizations (IP = In Progress, OK = Done):
+
+OK - strip common expressions and store into registers
+
+OK - Pre-sort every K elements before actual reduction, so we can allocate just BLOCK_SIZE elements instead of BLOCK_SIZE*K elements
+
+IP - try to merge_max_abs_k in-place, if succeed will increase upper bound of K
   by 2x
-- try to not pad each element into K slots, instead pack and pre-sort chunks
-  of K elements in-place right in the original array. If success, will reduce
-shared memory usage by K times! (better goal than above)
-
