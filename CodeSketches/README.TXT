@@ -2,7 +2,7 @@ README
 
 files:
 sparsecoding_test.cu - entry point for test program
-sparsecoding.cuh - the parallel algorithm templates for sparse coding + device query code
+sparsecoding.h - the parallel algorithm templates for sparse coding + device query code
 testcasegen.cpp - test case generation code
 utils.cpp - generic SEQUENTIAL algorithms
 
@@ -20,17 +20,9 @@ qsub test.pbs - run test cases. qsub take a while to return result. Results are 
 
 edit files testcaseXparams.txt to specify N and K, respectively, then "make testcase" to generate the test cases.
 
-CAUTION:
+Caveats:
 
 Currently the algorithm supports very large N but has limitations on the value of K. The constraint as of now is that BLOCK_SIZE must be multiple of K, meaning K is also limited by the amount of shared memory available. A workaround (not yet implemented) could be to see if K>BLOCK_SIZE. If yes then start by sorting, in descending order, blocks of size BLOCK_SIZE. Then merge those sorted blocks to get K elements. Each merged part, then, are concatenated and and calls max_abs_k recursively until final K elements is obtained.
 
 *** if K>BLOCK_SIZE works then test case 5 must pass 
 
-Optimizations (IP = In Progress, OK = Done):
-
-OK - strip common expressions and store into registers
-
-OK - Pre-sort every K elements before actual reduction, so we can allocate just BLOCK_SIZE elements instead of BLOCK_SIZE*K elements
-
-IP - try to merge_max_abs_k in-place, if succeed will increase upper bound of K
-  by 2x

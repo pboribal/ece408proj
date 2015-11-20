@@ -1,0 +1,13 @@
+Optimizations (IP = In Progress, TD = TODO, OK = Done):
+
+1 OK - strip common expressions and store into registers, shared memory, constant memory if possible
+
+2 OK - Pre-sort every K elements before actual reduction, so we can allocate just BLOCK_SIZE elements instead of BLOCK_SIZE*K elements
+
+3 TD - try to merge_max_abs_k in-place, if succeed this will increase upper bound of K by 100%
+
+4 TD - implement host code timing and device code timing mechanism, allowing us to explore more and more nontrivial tradeoffs.
+
+5 TD - (requires #4) use CUDA streams to hide memory transfer latency. We have to figure out how big the array should be before we start slicing the input into chunks for streaming. We need to time memory transfer to/from device (as a function of input size) and compare it to the kernel runtime (also a function of input size). Find a breakeven point and we'll be good to use streams. 
+	>> if this works then the computation will be just a tiny bit longer than it takes for copying the data over in 1 direction!!!
+

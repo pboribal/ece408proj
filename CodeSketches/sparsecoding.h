@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <math.h>
 #define BLOCK_SIZE 1024 
+//#include <thrust/device_vector.h>
+
 // the reduction operator
 // a and b are K-element arrays sorted in descending magnitude i.e. [5 -4 3 1 0 0]
 // buf is a K-element array used as buffer to store results before copying back to a
