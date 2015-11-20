@@ -5,7 +5,7 @@
 #include <map>
 #include <set>
 #include "utils.hpp"
-#include "sparsecoding.cuh"
+#include "sparsecoding.h"
 #define BLOCK_SIZE 1024
 
 //TODO take this entry point away and implement entry point for matlab mex
