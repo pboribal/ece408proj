@@ -13,3 +13,4 @@ echo "test 3 done."
 ./sparsecoding_test < testcase4.txt > out4.txt
 echo "test 4 done."
 echo "64 16" | ./sparsemult_test > outmult.txt
+echo "test mult done"
