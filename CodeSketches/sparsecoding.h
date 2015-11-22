@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <math.h>
 #define BLOCK_SIZE 1024 
-//#include <thrust/device_vector.h>
 
 // the reduction operator
 // a and b are K-element arrays sorted in descending magnitude i.e. [5 -4 3 1 0 0]
@@ -119,6 +118,41 @@ __host__ void do_max_abs_k(T *initial_input, T *output,int* idxinput, const int 
 	}while(n!=K);
 	// now output[0..K-1] contains the max k elements 
 	// now idxinput[0..K-1] storing corresponding index (index order preserved)
+}
+
+// multiply MxM matrix by a sparse vector with K nonzero elements, indexes are
+// given correspondingly. The kernel will be called with size <<<M,K>>>
+// the algorithm can be faster to load if we pass a constant memory for W.
+template <typename T>
+__global__ void sparseMult(T* W,T* x, int* idx, T* y, const int M, const int K)
+{
+	extern __shared__ T p[]; // p for product, this will have a size of M*K*sizeof(T)
+	int tx = threadIdx.x, bx = blockIdx.x;	
+	T value = x[tx];
+	__syncthreads();
+	int column = idx[tx];
+	__syncthreads();
+	p[tx] = W[bx*M + column] * value;
+	__syncthreads();	
+	int numgroups = K;
+  	for(unsigned int stride=(numgroups>>1)+(numgroups&1);stride>0;stride=(stride>>1)+((stride&1) && stride!=1))
+	  {	  	
+		  if(tx<stride && tx+stride < numgroups){
+		  	p[tx] += p[tx+stride];
+		  }
+		  numgroups = stride;
+		  __syncthreads();
+	  }  
+	if(tx==0)
+	{
+		y[bx] = p[0];
+	}
+}
+
+template <typename T>
+__host__ void do_sparseMult(T* W, T* x, int* idx, T* y, const int M, const int K)
+{
+	sparseMult<<<M,K,K*sizeof(T)>>>(W,x,idx,y,M,K);
 }
 
 int deviceQuery()

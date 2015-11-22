@@ -1,6 +1,7 @@
-all: sparsecoding_test.cu utils.cpp
-	nvcc -O3 -ccbin=g++ -Xcompiler -Wall  -o sparsecoding_test $^
-	g++ -Wall -Werror testcasegen.cpp -o testcasegen
+all:
+	nvcc -O3 -ccbin=g++ -Xcompiler -Wall sparsecoding_test.cu -o sparsecoding_test $^
+	nvcc -O3 -ccbin=g++ -Xcompiler -Wall sparsemult_test.cu -o sparsemult_test
+	g++ -Wall -Werror testcasegen.cpp -o testcasegen	
 testcase:testcasegen
 	./testcasegen < testcase1params.txt > testcase1.txt
 	./testcasegen < testcase2params.txt > testcase2.txt	

@@ -5,12 +5,11 @@
 #PBS -j oe
 cd $PBS_O_WORKDIR
 ./sparsecoding_test < testcase1.txt > out1.txt
-echo "job 1 done"
+echo "test 1 done"
 ./sparsecoding_test < testcase2.txt > out2.txt
-echo "job 2 done."
+echo "test 2 done."
 ./sparsecoding_test < testcase3.txt > out3.txt
-echo "job 3 done."
+echo "test 3 done."
 ./sparsecoding_test < testcase4.txt > out4.txt
-echo "job 4 done."
-./sparsecoding_test < testcase5.txt > out5.txt
-echo "job 4 done."
+echo "test 4 done."
+echo "64 16" | ./sparsemult_test > outmult.txt
