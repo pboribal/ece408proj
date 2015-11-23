@@ -1,7 +1,7 @@
 all:
-	nvcc -O3 -ccbin=g++ -Xcompiler -Wall sparsecoding_test.cu -o sparsecoding_test $^
+	nvcc -O3 -ccbin=g++ -Xcompiler -Wall sparsecoding_test.cu -o sparsecoding_test
 	nvcc -O3 -ccbin=g++ -Xcompiler -Wall sparsemult_test.cu -o sparsemult_test
-	g++ -Wall -Werror testcasegen.cpp -o testcasegen	
+	g++ -O3 -Wall -Werror testcasegen.cpp -o testcasegen	
 testcase:testcasegen
 	echo "256 32" | ./testcasegen  > testcase1.txt
 	echo "1024 128" | ./testcasegen  > testcase2.txt
