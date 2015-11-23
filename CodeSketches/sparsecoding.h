@@ -1,5 +1,9 @@
+#ifndef SPARSECODING_H
+#define SPARSECODING_H
 #include <stdio.h>
 #include <math.h>
+#include <vector>
+#include "utils.hpp"
 #define BLOCK_SIZE 1024 
 
 // the reduction operator
@@ -95,30 +99,6 @@ __global__ void max_abs_k(T *input, T *output, int* idxinput, const int initiali
   }  
 }
 
-//
-// kernel call wrapper. Since this is a sketch it will only handle one sample at a time.
-// One sample is probably already large enough for a GPU, so maybe each sample (or a fixed limited number of them) should go to a different GPU on different machines?
-// input : N
-// output : num_blocks x K
-template <typename T>
-__host__ void do_max_abs_k(T *initial_input, T *output,int* idxinput, const int N, const int K)
-{
-	int n = N;
-	T* input = initial_input;		
-	int shared_size_bytes = (sizeof(T)+sizeof(int))*2*BLOCK_SIZE; // 4 parts: data(T), index data(int), data buffer(T), index buffer (int)
-	int num_blocks = (int) ceil(n*1.0/BLOCK_SIZE);		
-	int init_index = 1; //use direct index for the first round
-	do
-	{		
-		max_abs_k<<<num_blocks,BLOCK_SIZE,shared_size_bytes>>>(input,output,idxinput,init_index,n,K);
-		init_index = 0;
-		n = K*num_blocks;
-		num_blocks = (int) ceil(n*1.0/BLOCK_SIZE);		
-		input = output;
-	}while(n!=K);
-	// now output[0..K-1] contains the max k elements 
-	// now idxinput[0..K-1] storing corresponding index (index order preserved)
-}
 
 // multiply MxM matrix by a sparse vector with K nonzero elements, indexes are
 // given correspondingly. The kernel will be called with size <<<M,K>>>
@@ -148,12 +128,65 @@ __global__ void sparseMult(T* W,T* x, int* idx, T* y, const int M, const int K)
 		y[bx] = p[0];
 	}
 }
-
+namespace sparsecoding{
+//
+// kernel call wrapper.
+// One sample is probably already large enough for a GPU, so maybe each sample (or a fixed limited number of them) should go to a different GPU on different machines?
+// input : N
+// output : num_blocks x K
 template <typename T>
-__host__ void do_sparseMult(T* W, T* x, int* idx, T* y, const int M, const int K)
+void klargest(const std::vector<T>& initial_input,std::vector<T>& final_output,std::vector<int>& idxoutput, const int K )
 {
-	sparseMult<<<M,K,K*sizeof(T)>>>(W,x,idx,y,M,K);
+	int N = initial_input.size();
+	int n = N;
+	int num_blocks = (int) ceil(n*1.0/BLOCK_SIZE);		
+	T *d_input,*input,*output;		
+	int* idxinput;
+	cudaMalloc(&d_input,sizeof(T)*N);
+	input = d_input;
+	cudaMalloc(&output,sizeof(T)*K*num_blocks);
+	cudaMalloc(&idxinput,sizeof(int)*N);
+	cudaMemcpy(input,&initial_input[0],sizeof(T)*N,cudaMemcpyHostToDevice);
+	int shared_size_bytes = (sizeof(T)+sizeof(int))*2*BLOCK_SIZE; // 4 parts: data(T), index data(int), data buffer(T), index buffer (int)
+	int init_index = 1; //use direct index for the first round
+	do
+	{		
+		max_abs_k<<<num_blocks,BLOCK_SIZE,shared_size_bytes>>>(input,output,idxinput,init_index,n,K);
+		init_index = 0;
+		n = K*num_blocks;
+		num_blocks = (int) ceil(n*1.0/BLOCK_SIZE);		
+		input = output;
+	}while(n!=K);
+	cudaDeviceSynchronize();
+	final_output.resize(K);
+	idxoutput.resize(K);
+	cudaMemcpy(&final_output[0],output,sizeof(T)*K,cudaMemcpyDeviceToHost);
+	cudaMemcpy(&idxoutput[0],idxinput,sizeof(int)*K,cudaMemcpyDeviceToHost);
+	cudaFree(d_input); cudaFree(output); cudaFree(idxinput);
+	// now final_output[0..K-1] contains the max k elements 
+	// now idxoutput[0..K-1] storing corresponding indexes
 }
+template <typename T>
+void kmult(const std::vector<T>& W, const std::vector<T>& x, const std::vector<int>& idx, std::vector<T>& y)
+{
+	int M = (int) round(sqrt(W.size()));
+	int K = x.size();
+	T *d_W, *d_x, *d_y;
+	int* d_idx;
+	cudaMalloc(&d_W,sizeof(T)*M*M); //maybe change this to constant mem
+	cudaMalloc(&d_x,sizeof(T)*K);
+	cudaMalloc(&d_idx,sizeof(int)*K);
+	cudaMalloc(&d_y,sizeof(T)*M);
+	cudaMemcpy(d_W,&W[0],sizeof(T)*M*M,cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x,&x[0],sizeof(T)*K,cudaMemcpyHostToDevice);
+	cudaMemcpy(d_idx,&idx[0],sizeof(int)*K,cudaMemcpyHostToDevice);
+	sparseMult<<<M,K,K*sizeof(T)>>>(d_W,d_x,d_idx,d_y,M,K);
+	cudaDeviceSynchronize();
+	y.resize(M);
+	cudaMemcpy(&y[0],d_y,sizeof(T)*M,cudaMemcpyDeviceToHost);
+	cudaFree(d_W); cudaFree(d_x); cudaFree(d_idx); cudaFree(d_y);
+}
+
 
 int deviceQuery()
 {
@@ -191,3 +224,7 @@ int deviceQuery()
   printf("stop - Getting GPU Data.\n"); //@@ stop the timer
   return 0;
 }
+
+} //end namespace
+#endif
+

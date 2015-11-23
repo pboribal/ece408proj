@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <vector>
 #include <map>
 #include <set>
 #include "utils.hpp"
@@ -21,15 +22,15 @@ int main()
 		printf("error: input_size and k must be positive and k > input_size\n");
 		return -1;
 	}
-	int num_blocks = (int) ceil(input_size*1.0/BLOCK_SIZE);
-	int output_size = k*num_blocks;
-	float* hInput = (float*) malloc(sizeof(float)*input_size);
-	float* hOutput = (float*) malloc(sizeof(float)*k);
-	int* hIdx = (int*) malloc(sizeof(int)*k);
+	std::vector<float> hInput;
+	std::vector<float> hOutput;
+	std::vector<int> hIdx;
 	std::map<int,float> expected;
 	std::set<int> found;
+	hInput.resize(input_size);
 	//populate input
-	for(int i=0;i<input_size;i++) std::cin >> hInput[i];
+	for(int i=0;i<input_size;i++)
+		std::cin >> hInput[i];
 	//populate expected result from test case
 	for(int i=0;i<k;i++) 
 	{
@@ -39,18 +40,7 @@ int main()
 		std::cin >> val;
 		expected[idx] = val;
 	}
-	float* dInput;
-	int* dIdxInput;
-	float* dOutput;	
-	cudaMalloc(&dInput, sizeof(float)*input_size);
-	cudaMalloc(&dIdxInput, sizeof(int)*input_size);
-	cudaMalloc(&dOutput, sizeof(float)*output_size);	
-	cudaMemcpy(dInput,hInput,sizeof(float)*input_size,cudaMemcpyHostToDevice);
-	do_max_abs_k(dInput,dOutput,dIdxInput,input_size,k);
-
-	cudaDeviceSynchronize();
-	cudaMemcpy(hOutput,dOutput,sizeof(float)*k,cudaMemcpyDeviceToHost);
-	cudaMemcpy(hIdx,dIdxInput,sizeof(int)*k,cudaMemcpyDeviceToHost);
+	sparsecoding::klargest(hInput,hOutput,hIdx,k);
 	bool pass = true;
 	for(int i=0;i<k;i++)
 	{
@@ -79,10 +69,5 @@ int main()
 	}
 	if(pass) std::cout << "correct!" << std::endl;
 	else std::cout << "incorrect." << std::endl;
-	free(hInput);
-	free(hOutput);
-	cudaFree(dInput);
-	cudaFree(dIdxInput);
-	cudaFree(dOutput);
 	return 0;
 }

@@ -24,5 +24,5 @@ Caveats:
 
 Currently the algorithm supports very large N but has limitations on the value of K. The constraint as of now is that BLOCK_SIZE must be multiple of K, meaning K is also limited by the amount of shared memory available. A workaround (not yet implemented) could be to see if K>BLOCK_SIZE. If yes then start by sorting, in descending order, blocks of size BLOCK_SIZE. Then merge those sorted blocks to get K elements. Each merged part, then, are concatenated and and calls max_abs_k recursively until final K elements is obtained.
 
-*** if K>BLOCK_SIZE works then test case 5 must pass 
+*** in practice K is not that large so this is not an immediate need
 
