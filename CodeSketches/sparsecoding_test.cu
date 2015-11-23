@@ -40,7 +40,9 @@ int main()
 		std::cin >> val;
 		expected[idx] = val;
 	}
-	sparsecoding::klargest(hInput,hOutput,hIdx,k);
+	//my::sparsecoding<float> spc;
+	//spc.klargest(hInput,hOutput,hIdx,k);
+     	my::klargest(hInput,hOutput,hIdx,k);
 	bool pass = true;
 	for(int i=0;i<k;i++)
 	{

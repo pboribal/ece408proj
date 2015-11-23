@@ -128,13 +128,17 @@ __global__ void sparseMult(T* W,T* x, int* idx, T* y, const int M, const int K)
 		y[bx] = p[0];
 	}
 }
-namespace sparsecoding{
+namespace my{ 
+
+template <typename T>
+class sparsecoding{
+
+public:
 //
 // kernel call wrapper.
 // One sample is probably already large enough for a GPU, so maybe each sample (or a fixed limited number of them) should go to a different GPU on different machines?
 // input : N
 // output : num_blocks x K
-template <typename T>
 void klargest(const std::vector<T>& initial_input,std::vector<T>& final_output,std::vector<int>& idxoutput, const int K )
 {
 	int N = initial_input.size();
@@ -166,7 +170,37 @@ void klargest(const std::vector<T>& initial_input,std::vector<T>& final_output,s
 	// now final_output[0..K-1] contains the max k elements 
 	// now idxoutput[0..K-1] storing corresponding indexes
 }
-template <typename T>
+
+//raw pointer version
+void klargest(const T* initial_input,T* final_output,int* idxoutput,const int N, const int K )
+{
+	int n = N;
+	int num_blocks = (int) ceil(n*1.0/BLOCK_SIZE);		
+	T *d_input,*input,*output;		
+	int* idxinput;
+	cudaMalloc(&d_input,sizeof(T)*N);
+	input = d_input;
+	cudaMalloc(&output,sizeof(T)*K*num_blocks);
+	cudaMalloc(&idxinput,sizeof(int)*N);
+	cudaMemcpy(input,&initial_input[0],sizeof(T)*N,cudaMemcpyHostToDevice);
+	int shared_size_bytes = (sizeof(T)+sizeof(int))*2*BLOCK_SIZE; // 4 parts: data(T), index data(int), data buffer(T), index buffer (int)
+	int init_index = 1; //use direct index for the first round
+	do
+	{		
+		max_abs_k<<<num_blocks,BLOCK_SIZE,shared_size_bytes>>>(input,output,idxinput,init_index,n,K);
+		init_index = 0;
+		n = K*num_blocks;
+		num_blocks = (int) ceil(n*1.0/BLOCK_SIZE);		
+		input = output;
+	}while(n!=K);
+	cudaDeviceSynchronize();
+	cudaMemcpy(&final_output[0],output,sizeof(T)*K,cudaMemcpyDeviceToHost);
+	cudaMemcpy(&idxoutput[0],idxinput,sizeof(int)*K,cudaMemcpyDeviceToHost);
+	cudaFree(d_input); cudaFree(output); cudaFree(idxinput);
+	// now final_output[0..K-1] contains the max k elements 
+	// now idxoutput[0..K-1] storing corresponding indexes
+}
+
 void kmult(const std::vector<T>& W, const std::vector<T>& x, const std::vector<int>& idx, std::vector<T>& y)
 {
 	int M = (int) round(sqrt(W.size()));
@@ -186,7 +220,54 @@ void kmult(const std::vector<T>& W, const std::vector<T>& x, const std::vector<i
 	cudaMemcpy(&y[0],d_y,sizeof(T)*M,cudaMemcpyDeviceToHost);
 	cudaFree(d_W); cudaFree(d_x); cudaFree(d_idx); cudaFree(d_y);
 }
+// raw pointer version
+void kmult(const T* W, const T* x, const int* idx, T* y, const int M, const int K)
+{
+	T *d_W, *d_x, *d_y;
+	int* d_idx;
+	cudaMalloc(&d_W,sizeof(T)*M*M); //maybe change this to constant mem
+	cudaMalloc(&d_x,sizeof(T)*K);
+	cudaMalloc(&d_idx,sizeof(int)*K);
+	cudaMalloc(&d_y,sizeof(T)*M);
+	cudaMemcpy(d_W,&W[0],sizeof(T)*M*M,cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x,&x[0],sizeof(T)*K,cudaMemcpyHostToDevice);
+	cudaMemcpy(d_idx,&idx[0],sizeof(int)*K,cudaMemcpyHostToDevice);
+	sparseMult<<<M,K,K*sizeof(T)>>>(d_W,d_x,d_idx,d_y,M,K);
+	cudaDeviceSynchronize();
+	cudaMemcpy(&y[0],d_y,sizeof(T)*M,cudaMemcpyDeviceToHost);
+	cudaFree(d_W); cudaFree(d_x); cudaFree(d_idx); cudaFree(d_y);
+}
 
+}; //end class
+
+// non-class versions
+template <typename T>
+void klargest(const std::vector<T>& initial_input,std::vector<T>& final_output,std::vector<int>& idxoutput, const int K )
+{
+	sparsecoding<T> spc;
+	spc.klargest(initial_input,final_output,idxoutput,K);
+}
+
+template <typename T>
+void klargest(const T* initial_input,T* final_output,int* idxoutput,const int N, const int K )
+{
+	sparsecoding<T> spc;
+	spc.klargest(initial_input,final_output,idxoutput,N,K);
+}
+
+template <typename T>
+void kmult(const std::vector<T>& W, const std::vector<T>& x, const std::vector<int>& idx, std::vector<T>& y)
+{
+	sparsecoding<T> spc;
+	spc.kmult(W,x,idx,y);
+}
+
+template <typename T>
+void kmult(const T* W, const T* x, const int* idx, T* y, const int M, const int K)
+{
+	sparsecoding<T> spc;
+	spc.kmult(W,x,idx,y,M,K);
+}
 
 int deviceQuery()
 {

@@ -34,8 +34,11 @@ int main()
 	for(int i=0; i<M;i++){
 		std::cout << x[i] << std::endl;
 	}
-	sparsecoding::klargest(x,x2,idx,K);
-	sparsecoding::kmult(W,x2,idx,y);
+	//my::sparsecoding<float> spc;
+	//spc.klargest(x,x2,idx,K);
+	//spc.kmult(W,x2,idx,y);
+	my::klargest(x,x2,idx,K);
+	my::kmult(W,x2,idx,y);
 	std::cout << "projected x" << std::endl;
 	for(int i=0; i<K; i++)
 	{
